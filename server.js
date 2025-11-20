@@ -114,4 +114,4 @@ server.listen(PORT, () => {
     console.log(`🚀 Servidor listo y corriendo en http://localhost:${PORT}`);
     console.log(`Público (Asistentes): https://app-preguntas.onrender.com/index.html`);
     console.log(`Moderación: htt ps://app-preguntas.onrender.com/moderator.html`);
-});
+}); 
