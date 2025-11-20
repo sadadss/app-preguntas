@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q&A del Evento - Público</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        h1 { color: #333; }
+        .formulario-qa input[type="text"], .formulario-qa textarea {
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+        .formulario-qa button { background-color: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
+        .pregunta-item { border-left: 5px solid green; padding: 15px; margin-bottom: 10px; border-radius: 6px; background-color: #e6ffe6; }
+        .pregunta-item strong { display: block; margin-bottom: 5px; color: #333; }
+        .info-meta { font-size: 0.8em; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>💬 Envía tu Pregunta</h1>
+    <form id="formulario-qa" class="formulario-qa">
+        <input type="text" id="nombre-usuario" placeholder="Tu Nombre (Opcional)">
+        <textarea id="texto-pregunta" rows="4" placeholder="Escribe tu pregunta aquí..." required></textarea>
+        <button type="submit">Enviar Pregunta</button>
+    </form>
+
+    <hr>
+
+    <h2>Preguntas Aprobadas (En Vivo)</h2>
+    <div id="lista-preguntas">
+        <p id="mensaje-vacio">Cargando preguntas...</p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script> 
+    
+    <script>
+        const listaPreguntas = document.getElementById('lista-preguntas');
+        const mensajeVacio = document.getElementById('mensaje-vacio');
+        
+        function renderizarPregunta(pregunta) {
+            const div = document.createElement('div');
+            div.className = 'pregunta-item';
+            div.id = `pregunta-${pregunta._id}`;
+            
+            const fecha = new Date(pregunta.fecha_creacion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+            div.innerHTML = `
+                <strong>${pregunta.texto_pregunta}</strong>
+                <div class="info-meta">
+                    Enviada por: ${pregunta.nombre_usuario} | ${fecha}
+                </div>
+            `;
+            
+            listaPreguntas.prepend(div);
+            if (mensajeVacio) mensajeVacio.style.display = 'none';
+        }
+
+        async function cargarPreguntasIniciales() {
+            try {
+                const response = await fetch('/api/preguntas/aprobadas');
+                const preguntas = await response.json();
+
+                if (preguntas.length > 0) {
+                    listaPreguntas.innerHTML = '';
+                    preguntas.forEach(renderizarPregunta);
+                } else {
+                    if (mensajeVacio) mensajeVacio.textContent = 'Aún no hay preguntas aprobadas.';
+                }
+            } catch (error) {
+                if (mensajeVacio) mensajeVacio.textContent = 'Error al cargar preguntas.';
+            }
+        }
+        
+        const socket = io(); 
+        
+        socket.on('pregunta_aprobada', (pregunta) => {
+            renderizarPregunta(pregunta);
+        });
+
+        document.getElementById('formulario-qa').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const nombre = document.getElementById('nombre-usuario').value;
+            const pregunta = document.getElementById('texto-pregunta').value;
+
+            const datos = {
+                texto_pregunta: pregunta,
+                nombre_usuario: nombre
+            };
+
+            try {
+                const response = await fetch('/api/preguntas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+
+                if (response.ok) {
+                    alert('¡Pregunta enviada! Esperando aprobación del moderador.');
+                    document.getElementById('texto-pregunta').value = '';
+                    document.getElementById('nombre-usuario').value = '';
+                } else {
+                    alert('Error al enviar la pregunta.');
+                }
+            } catch (error) {
+                alert('No se pudo conectar con el servidor.');
+            }
+        });
+
+        cargarPreguntasIniciales();
+    </script>
+</body>
+</html>

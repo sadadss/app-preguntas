@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Moderación Q&A</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f4f4f4; }
+        h1 { color: #cc0000; }
+        #lista-pendientes { margin-top: 20px; }
+        .pregunta-item {
+            background-color: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; 
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .pregunta-item strong { display: block; margin-bottom: 5px; color: #333; }
+        .info-meta { font-size: 0.8em; color: #999; margin-top: 5px; margin-bottom: 10px; }
+        .acciones button { 
+            padding: 8px 12px; margin-right: 10px; cursor: pointer; border: none; border-radius: 4px;
+        }
+        .btn-aprobar { background-color: #28a745; color: white; }
+        .btn-archivar { background-color: #dc3545; color: white; }
+        .oculto { display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>🛡️ Panel de Moderación (Preguntas Pendientes)</h1>
+    <div id="lista-pendientes">
+        <p id="mensaje-vacio">Cargando preguntas pendientes...</p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script> 
+
+    <script>
+        const listaPendientes = document.getElementById('lista-pendientes');
+        const mensajeVacio = document.getElementById('mensaje-vacio');
+        
+        async function actualizarEstado(id, nuevoEstado) {
+            try {
+                const response = await fetch(`/api/preguntas/${id}/estado`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ estado: nuevoEstado })
+                });
+
+                if (response.ok) {
+                    const elemento = document.getElementById(`pendiente-${id}`);
+                    if (elemento) elemento.remove();
+                    
+                    if (listaPendientes.children.length === 1) { 
+                        mensajeVacio.classList.remove('oculto');
+                        mensajeVacio.textContent = 'No hay preguntas pendientes.';
+                    }
+                } else {
+                    alert(`Error al actualizar la pregunta.`);
+                }
+            } catch (error) {
+                console.error('Error de conexión:', error);
+            }
+        }
+
+        function renderizarPregunta(pregunta) {
+            const div = document.createElement('div');
+            div.className = 'pregunta-item';
+            div.id = `pendiente-${pregunta._id}`;
+            
+            const fecha = new Date(pregunta.fecha_creacion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+            div.innerHTML = `
+                <strong>${pregunta.texto_pregunta}</strong>
+                <div class="info-meta">
+                    Enviada por: ${pregunta.nombre_usuario} | ${fecha}
+                </div>
+                <div class="acciones">
+                    <button class="btn-aprobar" data-id="${pregunta._id}" data-action="aprobada">✅ Aprobar</button>
+                    <button class="btn-archivar" data-id="${pregunta._id}" data-action="archivada">🗑️ Archivar</button>
+                </div>
+            `;
+            
+            div.querySelector('.btn-aprobar').addEventListener('click', (e) => {
+                actualizarEstado(e.target.dataset.id, 'aprobada');
+            });
+
+            div.querySelector('.btn-archivar').addEventListener('click', (e) => {
+                actualizarEstado(e.target.dataset.id, 'archivada');
+            });
+            
+            listaPendientes.prepend(div);
+            mensajeVacio.classList.add('oculto');
+        }
+
+        async function cargarPreguntasPendientes() {
+            try {
+                const response = await fetch('/api/preguntas/pendientes');
+                const preguntas = await response.json();
+
+                if (preguntas.length > 0) {
+                    listaPendientes.innerHTML = '';
+                    preguntas.forEach(renderizarPregunta);
+                } else {
+                    mensajeVacio.textContent = 'No hay preguntas pendientes.';
+                }
+            } catch (error) {
+                mensajeVacio.textContent = 'Error al cargar preguntas pendientes.';
+            }
+        }
+        
+        const socket = io(); 
+        
+        socket.on('nueva_pendiente', (pregunta) => {
+            renderizarPregunta(pregunta);
+        });
+
+        socket.on('pregunta_archivada', (pregunta) => {
+            const elemento = document.getElementById(`pendiente-${pregunta._id}`);
+            if (elemento) elemento.remove();
+        });
+
+
+        cargarPreguntasPendientes();
+    </script>
+</body>
+</html>
